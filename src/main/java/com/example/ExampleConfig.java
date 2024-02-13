@@ -8,12 +8,13 @@ import net.runelite.client.config.ConfigItem;
 public interface ExampleConfig extends Config
 {
 	@ConfigItem(
-		keyName = "greeting",
-		name = "Welcome Greeting",
-		description = "The message to show to the user when they login"
+		position = 1,
+		keyName = "templeosrs",
+		name = "TempleOSRS",
+		description = "Automatically updates your stats on templeosrs.com when you log out"
 	)
-	default String greeting()
+	default boolean templeosrs()
 	{
-		return "Hello";
+		return false;
 	}
 }
