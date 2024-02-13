@@ -25,14 +25,11 @@ public class PlayerUpdate
 	 */
 	private static final int XP_THRESHOLD = 5000;
 
-	@Inject
-	private Client client;
+	private final Client client;
 
-	@Inject
-	private ExampleConfig config;
+	private final ExampleConfig config;
 
-	@Inject
-	private OkHttpClient okHttpClient;
+	private final OkHttpClient okHttpClient;
 
 	private long lastAccount;
 
@@ -41,8 +38,16 @@ public class PlayerUpdate
 	private long lastXp;
 
 	@Inject
-	public PlayerUpdate()
+	public PlayerUpdate(
+		OkHttpClient okHttpClient,
+		Client client,
+		ExampleConfig config
+	)
 	{
+		this.okHttpClient = okHttpClient;
+		this.client = client;
+		this.config = config;
+
 		fetchXp = true;
 		lastAccount = -1L;
 	}
