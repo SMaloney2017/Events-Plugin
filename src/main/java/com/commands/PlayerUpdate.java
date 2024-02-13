@@ -52,6 +52,61 @@ public class PlayerUpdate
 		lastAccount = -1L;
 	}
 
+	private void update(long accountHash, String username)
+	{
+		EnumSet<WorldType> worldTypes = client.getWorldType();
+		username = username.replace(" ", "_");
+
+		if (config.templeosrs()
+			&& !worldTypes.contains(WorldType.SEASONAL)
+			&& !worldTypes.contains(WorldType.DEADMAN)
+			&& !worldTypes.contains(WorldType.NOSAVE_MODE))
+		{
+			Request request = buildRequest(accountHash, username, worldTypes);
+			sendRequest("TempleOSRS", request);
+		}
+
+	}
+
+	private Request buildRequest(long accountHash, String username, EnumSet<WorldType> worldTypes)
+	{
+		HttpUrl.Builder url = new HttpUrl.Builder()
+			.scheme("https")
+			.host("templeosrs.com")
+			.addPathSegment("php")
+			.addPathSegment("add_datapoint.php")
+			.addQueryParameter("player", username)
+			.addQueryParameter("accountHash", Long.toString(accountHash));
+
+		if (worldTypes.contains(WorldType.FRESH_START_WORLD))
+		{
+			url.addQueryParameter("worldType", "fsw");
+		}
+
+		return new Request.Builder()
+			.header("User-Agent", "RuneLite")
+			.url(url.build())
+			.build();
+	}
+
+	private void sendRequest(String platform, Request request)
+	{
+		okHttpClient.newCall(request).enqueue(new Callback()
+		{
+			@Override
+			public void onFailure(Call call, IOException e)
+			{
+				log.warn("Error submitting {} update, caused by {}.", platform, e.getMessage());
+			}
+
+			@Override
+			public void onResponse(Call call, Response response)
+			{
+				response.close();
+			}
+		});
+	}
+
 	public void login()
 	{
 		if (lastAccount != client.getAccountHash())
@@ -77,60 +132,6 @@ public class PlayerUpdate
 			update(lastAccount, local.getName());
 			lastXp = totalXp;
 		}
-	}
-
-	private void update(long accountHash, String username)
-	{
-		EnumSet<WorldType> worldTypes = client.getWorldType();
-		username = username.replace(" ", "_");
-		updateTempleosrs(accountHash, username, worldTypes);
-	}
-
-	private void updateTempleosrs(long accountHash, String username, EnumSet<WorldType> worldTypes)
-	{
-		if (config.templeosrs()
-			&& !worldTypes.contains(WorldType.SEASONAL)
-			&& !worldTypes.contains(WorldType.DEADMAN)
-			&& !worldTypes.contains(WorldType.NOSAVE_MODE))
-		{
-			HttpUrl.Builder url = new HttpUrl.Builder()
-				.scheme("https")
-				.host("templeosrs.com")
-				.addPathSegment("php")
-				.addPathSegment("add_datapoint.php")
-				.addQueryParameter("player", username)
-				.addQueryParameter("accountHash", Long.toString(accountHash));
-
-			if (worldTypes.contains(WorldType.FRESH_START_WORLD))
-			{
-				url.addQueryParameter("worldType", "fsw");
-			}
-
-			Request request = new Request.Builder()
-				.header("User-Agent", "RuneLite")
-				.url(url.build())
-				.build();
-
-			sendRequest("TempleOSRS", request);
-		}
-	}
-
-	private void sendRequest(String platform, Request request)
-	{
-		okHttpClient.newCall(request).enqueue(new Callback()
-		{
-			@Override
-			public void onFailure(Call call, IOException e)
-			{
-				log.warn("Error submitting {} update, caused by {}.", platform, e.getMessage());
-			}
-
-			@Override
-			public void onResponse(Call call, Response response)
-			{
-				response.close();
-			}
-		});
 	}
 
 	public long getLastXp()
