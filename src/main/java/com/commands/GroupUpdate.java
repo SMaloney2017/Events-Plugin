@@ -46,16 +46,17 @@ public class GroupUpdate
 	{
 		ClanSettings localClan = client.getClanSettings();
 
-		if (Objects.isNull(localClan))
+		// TODO:: Verify clanId and groupKey against localClan
+		if (Objects.isNull(localClan) || localClan.getMembers().isEmpty())
 		{
 			return;
 		}
 
 		List<String> members = new ArrayList<>();
-
 		for (ClanMember member : localClan.getMembers())
 		{
-			members.add(member.getName().replace('\u00A0', ' '));
+			String name = member.getName().replace('\u00A0', ' ');
+			members.add(name);
 		}
 
 		Request request = buildRequest(
