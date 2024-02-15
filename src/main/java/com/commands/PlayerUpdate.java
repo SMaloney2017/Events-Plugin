@@ -18,24 +18,17 @@ import okhttp3.Response;
 
 @Slf4j
 @Singleton
-public class PlayerUpdate
+public class PlayerUpdate extends CommandAbstract
 {
-	/**
-	 * Amount of EXP that must be gained for an update to be submitted.
-	 */
-	private static final int XP_THRESHOLD = 5000;
-
 	private final Client client;
 
 	private final ExampleConfig config;
 
 	private final OkHttpClient okHttpClient;
 
-	private long lastAccount;
+	public String username;
 
-	private boolean fetchXp;
-
-	private long lastXp;
+	public long lastAccount;
 
 	@Inject
 	public PlayerUpdate(
@@ -47,28 +40,50 @@ public class PlayerUpdate
 		this.okHttpClient = okHttpClient;
 		this.client = client;
 		this.config = config;
+	}
 
-		fetchXp = true;
+	@Override
+	public void initialize()
+	{
+		Player player = client.getLocalPlayer();
+		username = player.getName().replace("\u00A0", "_");
+	}
+
+	@Override
+	public boolean validate()
+	{
+		EnumSet<WorldType> worldTypes = client.getWorldType();
+		return !config.templeosrs()
+			|| worldTypes.contains(WorldType.SEASONAL)
+			|| worldTypes.contains(WorldType.DEADMAN)
+			|| worldTypes.contains(WorldType.NOSAVE_MODE)
+			|| username.isEmpty();
+	}
+
+	@Override
+	public void execute()
+	{
+		initialize();
+
+		if (!validate())
+		{
+			return;
+		}
+
+		Request request = buildRequest();
+		sendRequest(request);
+
+		reset();
+	}
+
+	@Override
+	public void reset()
+	{
+		username = null;
 		lastAccount = -1L;
 	}
 
-	private void update(long accountHash, String username)
-	{
-		EnumSet<WorldType> worldTypes = client.getWorldType();
-		username = username.replace(" ", "_");
-
-		if (config.templeosrs()
-			&& !worldTypes.contains(WorldType.SEASONAL)
-			&& !worldTypes.contains(WorldType.DEADMAN)
-			&& !worldTypes.contains(WorldType.NOSAVE_MODE))
-		{
-			Request request = buildRequest(accountHash, username, worldTypes);
-			sendRequest("TempleOSRS", request);
-		}
-
-	}
-
-	private Request buildRequest(long accountHash, String username, EnumSet<WorldType> worldTypes)
+	public Request buildRequest()
 	{
 		HttpUrl.Builder url = new HttpUrl.Builder()
 			.scheme("https")
@@ -76,9 +91,9 @@ public class PlayerUpdate
 			.addPathSegment("php")
 			.addPathSegment("add_datapoint.php")
 			.addQueryParameter("player", username)
-			.addQueryParameter("accountHash", Long.toString(accountHash));
+			.addQueryParameter("accountHash", String.valueOf(lastAccount));
 
-		if (worldTypes.contains(WorldType.FRESH_START_WORLD))
+		if (client.getWorldType().contains(WorldType.FRESH_START_WORLD))
 		{
 			url.addQueryParameter("worldType", "fsw");
 		}
@@ -89,14 +104,14 @@ public class PlayerUpdate
 			.build();
 	}
 
-	private void sendRequest(String platform, Request request)
+	public void sendRequest(Request request)
 	{
 		okHttpClient.newCall(request).enqueue(new Callback()
 		{
 			@Override
 			public void onFailure(Call call, IOException e)
 			{
-				log.warn("Error submitting {} update, caused by {}.", platform, e.getMessage());
+				log.warn("Error submitting {} update, caused by {}.", "TempleOSRS", e.getMessage());
 			}
 
 			@Override
@@ -105,52 +120,5 @@ public class PlayerUpdate
 				response.close();
 			}
 		});
-	}
-
-	public void login()
-	{
-		if (lastAccount != client.getAccountHash())
-		{
-			lastAccount = client.getAccountHash();
-			fetchXp = true;
-		}
-	}
-
-	public void logout()
-	{
-		Player local = client.getLocalPlayer();
-		if (local == null)
-		{
-			return;
-		}
-
-		long totalXp = client.getOverallExperience();
-		// Don't submit update unless xp threshold is reached
-		if (Math.abs(totalXp - lastXp) > XP_THRESHOLD)
-		{
-			log.debug("Submitting update for {} accountHash {}", local.getName(), lastAccount);
-			update(lastAccount, local.getName());
-			lastXp = totalXp;
-		}
-	}
-
-	public long getLastXp()
-	{
-		return this.lastXp;
-	}
-
-	public void setLastXp(long lastXp)
-	{
-		this.lastXp = lastXp;
-	}
-
-	public boolean getFetchXp()
-	{
-		return fetchXp;
-	}
-
-	public void setFetchXp(boolean fetchXp)
-	{
-		this.fetchXp = fetchXp;
 	}
 }

@@ -22,13 +22,15 @@ import okhttp3.Response;
 
 @Slf4j
 @Singleton
-public class GroupUpdate
+public class GroupUpdate extends CommandAbstract
 {
 	private final Client client;
 
 	private final ExampleConfig config;
 
 	private final OkHttpClient okHttpClient;
+
+	private List<String> members;
 
 	@Inject
 	public GroupUpdate(
@@ -42,33 +44,70 @@ public class GroupUpdate
 		this.config = config;
 	}
 
-	private void update()
+	@Override
+	public void initialize()
+	{
+		this.members = getLocalClanMembers();
+	}
+
+	@Override
+	public boolean validate()
 	{
 		ClanSettings localClan = client.getClanSettings();
+		if (Objects.isNull(localClan))
+		{
+			return false;
+		}
 
-		// TODO:: Verify clanId and groupKey against localClan
-		if (Objects.isNull(localClan) || localClan.getMembers().isEmpty())
+		// TODO:: Refactor this into its own getGroupData command
+		HttpUrl.Builder url = new HttpUrl.Builder()
+			.scheme("https")
+			.host("templeosrs.com")
+			.addPathSegment("api")
+			.addPathSegment("group_info.php")
+			.addQueryParameter("id", String.valueOf(config.groupid()));
+
+		Request request = new Request.Builder()
+			.header("User-Agent", "RuneLite")
+			.url(url.build())
+			.build();
+
+		try
+		{
+			Response response = okHttpClient.newCall(request).execute();
+			String body = response.body().string();
+			// TODO:: Is better validation possible?
+			return body.contains(localClan.getName());
+		}
+		catch (Exception e)
+		{
+			return false;
+		}
+	}
+
+	@Override
+	public void execute()
+	{
+		initialize();
+
+		if (!validate())
 		{
 			return;
 		}
 
-		List<String> members = new ArrayList<>();
-		for (ClanMember member : localClan.getMembers())
-		{
-			String name = member.getName().replace('\u00A0', ' ');
-			members.add(name);
-		}
+		Request request = buildRequest();
+		sendRequest(request);
 
-		Request request = buildRequest(
-			String.valueOf(config.groupid()),
-			config.groupkey(),
-			members
-		);
-
-		sendRequest("TempleOSRS", request);
+		reset();
 	}
 
-	private Request buildRequest(String id, String key, List<String> members)
+	@Override
+	public void reset()
+	{
+		members = null;
+	}
+
+	private Request buildRequest()
 	{
 		HttpUrl.Builder url = new HttpUrl.Builder()
 			.scheme("https")
@@ -77,9 +116,10 @@ public class GroupUpdate
 			.addPathSegment("edit_group.php");
 
 		RequestBody body = new FormBody.Builder()
-			.add("id", id)
-			.add("key", key)
-			.add("memberlist", String.valueOf(members)).build();
+			.add("id", String.valueOf(config.groupid()))
+			.add("key", config.groupkey())
+			.add("memberlist", String.valueOf(members))
+			.build();
 
 		return new Request.Builder()
 			.header("User-Agent", "RuneLite")
@@ -88,14 +128,14 @@ public class GroupUpdate
 			.build();
 	}
 
-	private void sendRequest(String platform, Request request)
+	public void sendRequest(Request request)
 	{
 		okHttpClient.newCall(request).enqueue(new Callback()
 		{
 			@Override
 			public void onFailure(Call call, IOException e)
 			{
-				log.warn("Error submitting {} update, caused by {}.", platform, e.getMessage());
+				log.warn("Error submitting {} update, caused by {}.", "TempleOSRS", e.getMessage());
 			}
 
 			@Override
@@ -104,5 +144,24 @@ public class GroupUpdate
 				response.close();
 			}
 		});
+	}
+
+	public List<String> getLocalClanMembers()
+	{
+		List<String> members = new ArrayList<>();
+		ClanSettings localClan = client.getClanSettings();
+
+		if (Objects.isNull(localClan) || localClan.getMembers().isEmpty())
+		{
+			return members;
+		}
+
+		for (ClanMember member : localClan.getMembers())
+		{
+			String name = member.getName().replace("\u00A0", "_");
+			members.add(name);
+		}
+
+		return members;
 	}
 }
