@@ -1,5 +1,6 @@
 package com.example;
 
+import com.commands.GroupUpdate;
 import com.commands.NameUpdate;
 import com.commands.PlayerUpdate;
 import com.google.common.base.Strings;
@@ -10,6 +11,7 @@ import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Nameable;
 import net.runelite.api.Player;
+import net.runelite.api.events.ClanChannelChanged;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.NameableNameChanged;
@@ -39,6 +41,8 @@ public class ExamplePlugin extends Plugin
 	private PlayerUpdate playerUpdate;
 	@Inject
 	private NameUpdate nameUpdate;
+	@Inject
+	private GroupUpdate groupUpdate;
 	@Inject
 	private Client client;
 	@Inject
@@ -120,7 +124,6 @@ public class ExamplePlugin extends Plugin
 	@Subscribe
 	public void onNameableNameChanged(NameableNameChanged nameableNameChanged)
 	{
-
 		final Nameable nameable = nameableNameChanged.getNameable();
 
 		String name = nameable.getName();
@@ -137,5 +140,16 @@ public class ExamplePlugin extends Plugin
 		// TODO:: Implement scheduler to limit name changes to 10/min
 		nameUpdate.initialize(prev, name);
 		nameUpdate.execute();
+	}
+
+	@Subscribe
+	public void onClanChannelChanged(ClanChannelChanged clanChannelChanged)
+	{
+		if (Strings.isNullOrEmpty(config.groupkey()) || config.groupid() == 0)
+		{
+			return;
+		}
+
+		groupUpdate.execute();
 	}
 }
