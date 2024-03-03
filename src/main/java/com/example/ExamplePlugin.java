@@ -16,13 +16,18 @@ import net.runelite.api.events.NameableNameChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
+import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginManager;
+import net.runelite.client.plugins.xpupdater.XpUpdaterConfig;
+import net.runelite.client.plugins.xpupdater.XpUpdaterPlugin;
 import okhttp3.OkHttpClient;
 
 @Slf4j
 @PluginDescriptor(
 	name = "Example"
 )
+@PluginDependency(XpUpdaterPlugin.class)
 public class ExamplePlugin extends Plugin
 {
 	/**
@@ -40,6 +45,14 @@ public class ExamplePlugin extends Plugin
 	private ExampleConfig config;
 	@Inject
 	private OkHttpClient okHttpClient;
+	@Inject
+	private XpUpdaterPlugin xpUpdaterPlugin;
+
+	@Inject
+	private XpUpdaterConfig xpUpdaterConfig;
+
+	@Inject
+	private PluginManager pluginManager;
 
 	private long lastAccount;
 
@@ -82,7 +95,10 @@ public class ExamplePlugin extends Plugin
 
 			long totalXp = client.getOverallExperience();
 			// Don't submit update unless xp threshold is reached
-			if (Math.abs(totalXp - lastXp) > XP_THRESHOLD)
+			if (
+				(!pluginManager.isPluginEnabled(xpUpdaterPlugin) || !xpUpdaterConfig.templeosrs()) &&
+				config.templeosrs() && (Math.abs(totalXp - lastXp) > XP_THRESHOLD)
+			)
 			{
 				log.debug("Submitting update for {} accountHash {}", local.getName(), lastAccount);
 				playerUpdate.execute();
